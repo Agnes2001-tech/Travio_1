@@ -6,6 +6,7 @@ import '../services/amadeus_service.dart';
 import '../models/flight_model.dart';
 import '../models/hotel_model.dart';
 import 'destination_details_screen.dart';
+import 'booking_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -71,6 +72,7 @@ class _SearchScreenState extends State<SearchScreen> {
         setState(() {
           _hotels = results;
           _flights = [];
+          _activities = [];
         });
       } else if (_selectedCategory == 'Flights') {
         final from = _flightFromController.text.toUpperCase().trim();
@@ -83,7 +85,32 @@ class _SearchScreenState extends State<SearchScreen> {
         setState(() {
           _flights = results;
           _hotels = [];
+          _activities = [];
         });
+      } else if (_selectedCategory == 'Places' || _selectedCategory == 'Packages') {
+        final cityCode = _hotelSearchController.text.toUpperCase().trim();
+        final coords = await _amadeusService.getCityCoordinates(cityCode.isEmpty ? 'PAR' : cityCode);
+        if (_selectedCategory == 'Places') {
+          final results = await _amadeusService.getPointsOfInterest(
+            lat: coords['lat']!,
+            lon: coords['lon']!,
+          );
+          setState(() {
+            _activities = results;
+            _hotels = [];
+            _flights = [];
+          });
+        } else {
+          final results = await _amadeusService.getToursAndActivities(
+            lat: coords['lat']!,
+            lon: coords['lon']!,
+          );
+          setState(() {
+            _activities = results;
+            _hotels = [];
+            _flights = [];
+          });
+        }
       }
     } catch (e) {
       Fluttertoast.showToast(msg: 'Search failed: ${e.toString()}');
@@ -91,6 +118,7 @@ class _SearchScreenState extends State<SearchScreen> {
       setState(() => _isLoading = false);
     }
   }
+List<Map<String, dynamic>> _activities = [];
 
   @override
   Widget build(BuildContext context) {
@@ -129,12 +157,14 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _selectedCategory == 'Hotels'
+              child: (_selectedCategory == 'Hotels' || _selectedCategory == 'Places' || _selectedCategory == 'Packages')
                   ? TextField(
                       controller: _hotelSearchController,
                       onSubmitted: (_) => _performSearch(),
                       decoration: InputDecoration(
-                        hintText: 'Enter city code (e.g. PAR, LON, NYC)',
+                        hintText: _selectedCategory == 'Hotels' 
+                            ? 'Enter city code (e.g. PAR, LON)' 
+                            : 'Enter city for ${_selectedCategory.toLowerCase()}',
                         prefixIcon: const Icon(Icons.search),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.close),
@@ -224,8 +254,8 @@ class _SearchScreenState extends State<SearchScreen> {
                 children: [
                   _filterChip('Hotels', _selectedCategory == 'Hotels'),
                   _filterChip('Flights', _selectedCategory == 'Flights'),
-                  _filterChip('Price: Low-High', false),
-                  _filterChip('Rating', false),
+                  _filterChip('Places', _selectedCategory == 'Places'),
+                  _filterChip('Packages', _selectedCategory == 'Packages'),
                 ],
               ),
             ),
@@ -235,7 +265,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${_selectedCategory == "Hotels" ? _hotels.length : _flights.length} RESULTS FOUND',
+                    '${_selectedCategory == "Hotels" ? _hotels.length : _selectedCategory == "Flights" ? _flights.length : _activities.length} RESULTS FOUND',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   const Icon(Icons.map_outlined, color: AppColors.primary),
@@ -249,12 +279,16 @@ class _SearchScreenState extends State<SearchScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       itemCount: _selectedCategory == 'Hotels'
                           ? _hotels.length
-                          : _flights.length,
+                          : _selectedCategory == 'Flights'
+                              ? _flights.length
+                              : _activities.length,
                       itemBuilder: (_, i) {
                         if (_selectedCategory == 'Hotels') {
                           return _buildHotelItem(_hotels[i]);
-                        } else {
+                        } else if (_selectedCategory == 'Flights') {
                           return _buildFlightItem(_flights[i]);
+                        } else {
+                          return _buildActivityItem(_activities[i]);
                         }
                       },
                     ),
@@ -270,7 +304,7 @@ class _SearchScreenState extends State<SearchScreen> {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => const DestinationDetailsScreen(),
+          builder: (_) => BookingScreen(hotel: hotel),
         ),
       ),
       child: Container(
@@ -346,8 +380,11 @@ class _SearchScreenState extends State<SearchScreen> {
                           ],
                         ),
                         ElevatedButton(
-                          onPressed: () => Fluttertoast.showToast(
-                            msg: 'Details tapped',
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BookingScreen(hotel: hotel),
+                            ),
                           ),
                           style: ElevatedButton.styleFrom(
                             minimumSize: const Size(60, 30),
@@ -355,7 +392,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               horizontal: 12,
                             ),
                           ),
-                          child: const Text('Details'),
+                          child: const Text('Book'),
                         ),
                       ],
                     ),
@@ -370,71 +407,141 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildFlightItem(FlightOffer flight) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BookingScreen(flight: flight),
+        ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      flight.departureIata,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    ),
-                    Text(
-                      DateFormat('HH:mm').format(flight.departureTime),
-                      style: const TextStyle(color: AppColors.textGrey),
-                    ),
-                  ],
-                ),
-                const Column(
-                  children: [
-                    Icon(Icons.flight_takeoff, color: AppColors.primary),
-                    SizedBox(height: 4),
-                    Text('Direct', style: TextStyle(fontSize: 10, color: AppColors.textGrey)),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      flight.arrivalIata,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    ),
-                    Text(
-                      DateFormat('HH:mm').format(flight.arrivalTime),
-                      style: const TextStyle(color: AppColors.textGrey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  flight.airline,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  '${flight.currency} ${flight.price}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primary,
-                    fontSize: 16,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        flight.departureIata,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                      Text(
+                        DateFormat('HH:mm').format(flight.departureTime),
+                        style: const TextStyle(color: AppColors.textGrey),
+                      ),
+                    ],
                   ),
+                  const Column(
+                    children: [
+                      Icon(Icons.flight_takeoff, color: AppColors.primary),
+                      SizedBox(height: 4),
+                      Text('Direct', style: TextStyle(fontSize: 10, color: AppColors.textGrey)),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        flight.arrivalIata,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                      Text(
+                        DateFormat('HH:mm').format(flight.arrivalTime),
+                        style: const TextStyle(color: AppColors.textGrey),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Divider(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    flight.airline,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Text(
+                    '${flight.currency} ${flight.price}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActivityItem(Map<String, dynamic> activity) {
+    final name = activity['name'] ?? 'Activity';
+    final pic = activity['pictures'] != null && (activity['pictures'] as List).isNotEmpty
+        ? activity['pictures'][0]
+        : 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=200';
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DestinationDetailsScreen()),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.network(
+                pic,
+                width: 70,
+                height: 70,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  width: 70,
+                  height: 70,
+                  color: AppColors.primary.withOpacity(0.1),
+                  child: const Icon(Icons.broken_image, color: AppColors.primary),
                 ),
-              ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Explore now',
+                    style: TextStyle(color: AppColors.primary, fontSize: 12),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -444,10 +551,10 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _filterChip(String label, bool selected) => GestureDetector(
         onTap: () {
-          if (label == 'Hotels' || label == 'Flights') {
-            setState(() {
-              _selectedCategory = label;
-            });
+          setState(() {
+            _selectedCategory = label;
+          });
+          if (label == 'Hotels' || label == 'Places' || label == 'Packages') {
             _performSearch();
           }
         },
