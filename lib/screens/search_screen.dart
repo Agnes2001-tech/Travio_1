@@ -1,44 +1,96 @@
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:intl/intl.dart';
 import '../theme/app_colors.dart';
+import '../services/amadeus_service.dart';
+import '../models/flight_model.dart';
+import '../models/hotel_model.dart';
 import 'destination_details_screen.dart';
 
-class SearchScreen extends StatelessWidget {
+class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
-  final _hotels = const [
-    {
-      'name': 'Hôtel Plaza Athénée',
-      'loc': '8th Arr., Paris',
-      'price': '\$840',
-      'rating': '4.9',
-    },
-    {
-      'name': 'Le Bristol Paris',
-      'loc': 'Rue du Faubourg, Paris',
-      'price': '\$1,250',
-      'rating': '4.8',
-    },
-    {
-      'name': 'Shangri-La Hotel',
-      'loc': 'Trocadéro, Paris',
-      'price': '\$980',
-      'rating': '4.7',
-    },
-    {
-      'name': 'Hotel Lutetia',
-      'loc': 'Saint-Germain, Paris',
-      'price': '\$620',
-      'rating': '4.9',
-    },
-  ];
+  @override
+  State<SearchScreen> createState() => _SearchScreenState();
+}
 
-  final _imgs = const [
-    'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=200',
-    'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=200',
-    'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=200',
-    'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=200',
-  ];
+class _SearchScreenState extends State<SearchScreen> {
+  final AmadeusService _amadeusService = AmadeusService();
+  final TextEditingController _hotelSearchController =
+      TextEditingController(text: 'PAR');
+  final TextEditingController _flightFromController =
+      TextEditingController(text: 'LON');
+  final TextEditingController _flightToController =
+      TextEditingController(text: 'PAR');
+  
+  DateTime _selectedDate = DateTime.now().add(const Duration(days: 7));
+  bool _isLoading = false;
+  List<FlightOffer> _flights = [];
+  List<HotelOffer> _hotels = [];
+  String _selectedCategory = 'Hotels';
+
+  @override
+  void initState() {
+    super.initState();
+    _performSearch();
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primary,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
+      if (_selectedCategory == 'Flights') _performSearch();
+    }
+  }
+
+  Future<void> _performSearch() async {
+    setState(() => _isLoading = true);
+    try {
+      if (_selectedCategory == 'Hotels') {
+        final cityCode = _hotelSearchController.text.toUpperCase().trim();
+        final results = await _amadeusService.searchHotels(cityCode: cityCode);
+        setState(() {
+          _hotels = results;
+          _flights = [];
+        });
+      } else if (_selectedCategory == 'Flights') {
+        final from = _flightFromController.text.toUpperCase().trim();
+        final to = _flightToController.text.toUpperCase().trim();
+        final results = await _amadeusService.searchFlights(
+          origin: from,
+          destination: to,
+          departureDate: DateFormat('yyyy-MM-dd').format(_selectedDate),
+        );
+        setState(() {
+          _flights = results;
+          _hotels = [];
+        });
+      }
+    } catch (e) {
+      Fluttertoast.showToast(msg: 'Search failed: ${e.toString()}');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,19 +129,92 @@ class SearchScreen extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: TextField(
-                decoration: InputDecoration(
-                  hintText: 'Paris, France',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: const Icon(Icons.close),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: Colors.white,
-                ),
-              ),
+              child: _selectedCategory == 'Hotels'
+                  ? TextField(
+                      controller: _hotelSearchController,
+                      onSubmitted: (_) => _performSearch(),
+                      decoration: InputDecoration(
+                        hintText: 'Enter city code (e.g. PAR, LON, NYC)',
+                        prefixIcon: const Icon(Icons.search),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => _hotelSearchController.clear(),
+                        ),
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _flightFromController,
+                                decoration: const InputDecoration(
+                                  hintText: 'From (NYC)',
+                                  prefixIcon: Icon(Icons.flight_takeoff, size: 20),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: TextField(
+                                controller: _flightToController,
+                                decoration: const InputDecoration(
+                                  hintText: 'To (LON)',
+                                  prefixIcon: Icon(Icons.flight_land, size: 20),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        GestureDetector(
+                          onTap: () => _selectDate(context),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.calendar_today,
+                                  size: 18,
+                                  color: AppColors.textGrey,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  DateFormat('EEE, d MMM yyyy').format(_selectedDate),
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                                const Spacer(),
+                                const Text(
+                                  'CHANGE',
+                                  style: TextStyle(
+                                    color: AppColors.primary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: _performSearch,
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(double.infinity, 45),
+                          ),
+                          child: const Text('Search Flights'),
+                        ),
+                      ],
+                    ),
             ),
             const SizedBox(height: 12),
             SingleChildScrollView(
@@ -97,8 +222,8 @@ class SearchScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  _filterChip('Hotels', true),
-                  _filterChip('Flights', false),
+                  _filterChip('Hotels', _selectedCategory == 'Hotels'),
+                  _filterChip('Flights', _selectedCategory == 'Flights'),
                   _filterChip('Price: Low-High', false),
                   _filterChip('Rating', false),
                 ],
@@ -109,120 +234,132 @@ class SearchScreen extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    '142 PROPERTIES FOUND',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  Text(
+                    '${_selectedCategory == "Hotels" ? _hotels.length : _flights.length} RESULTS FOUND',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                   const Icon(Icons.map_outlined, color: AppColors.primary),
                 ],
               ),
             ),
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: 4,
-                itemBuilder: (_, i) => GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const DestinationDetailsScreen(),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: _selectedCategory == 'Hotels'
+                          ? _hotels.length
+                          : _flights.length,
+                      itemBuilder: (_, i) {
+                        if (_selectedCategory == 'Hotels') {
+                          return _buildHotelItem(_hotels[i]);
+                        } else {
+                          return _buildFlightItem(_flights[i]);
+                        }
+                      },
                     ),
-                  ),
-                  child: Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHotelItem(HotelOffer hotel) {
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const DestinationDetailsScreen(),
+        ),
+      ),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.horizontal(
+                left: Radius.circular(14),
+              ),
+              child: Container(
+                width: 100,
+                height: 100,
+                color: AppColors.primary.withOpacity(0.1),
+                child: const Icon(Icons.hotel, color: AppColors.primary),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      hotel.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                    child: Row(
+                    const Row(
                       children: [
-                        ClipRRect(
-                          borderRadius: const BorderRadius.horizontal(
-                            left: Radius.circular(14),
-                          ),
-                          child: Image.network(
-                            _imgs[i],
-                            width: 100,
-                            height: 100,
-                            fit: BoxFit.cover,
-                          ),
+                        Icon(
+                          Icons.location_on,
+                          size: 12,
+                          color: AppColors.textGrey,
                         ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _hotels[i]['name']!,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.location_on,
-                                      size: 12,
-                                      color: AppColors.textGrey,
-                                    ),
-                                    Text(
-                                      _hotels[i]['loc']!,
-                                      style: const TextStyle(
-                                        color: AppColors.textGrey,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        const Text(
-                                          'STARTING FROM',
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: AppColors.textGrey,
-                                          ),
-                                        ),
-                                        Text(
-                                          '${_hotels[i]['price']}/night',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            color: AppColors.primary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    ElevatedButton(
-                                      onPressed: () => Fluttertoast.showToast(
-                                        msg: 'Details tapped',
-                                      ),
-                                      style: ElevatedButton.styleFrom(
-                                        minimumSize: const Size(60, 30),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Details',
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                        Text(
+                          'Available now',
+                          style: TextStyle(
+                            color: AppColors.textGrey,
+                            fontSize: 11,
                           ),
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'STARTING FROM',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: AppColors.textGrey,
+                              ),
+                            ),
+                            Text(
+                              '${hotel.currency} ${hotel.price}/night',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        ElevatedButton(
+                          onPressed: () => Fluttertoast.showToast(
+                            msg: 'Details tapped',
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            minimumSize: const Size(60, 30),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
+                          ),
+                          child: const Text('Details'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -232,20 +369,103 @@ class SearchScreen extends StatelessWidget {
     );
   }
 
-  Widget _filterChip(String label, bool selected) => Container(
-    margin: const EdgeInsets.only(right: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-    decoration: BoxDecoration(
-      color: selected ? AppColors.primary : Colors.white,
-      borderRadius: BorderRadius.circular(20),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(
-        color: selected ? Colors.white : AppColors.textGrey,
-        fontSize: 12,
-        fontWeight: FontWeight.w500,
+  Widget _buildFlightItem(FlightOffer flight) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
       ),
-    ),
-  );
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      flight.departureIata,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    Text(
+                      DateFormat('HH:mm').format(flight.departureTime),
+                      style: const TextStyle(color: AppColors.textGrey),
+                    ),
+                  ],
+                ),
+                const Column(
+                  children: [
+                    Icon(Icons.flight_takeoff, color: AppColors.primary),
+                    SizedBox(height: 4),
+                    Text('Direct', style: TextStyle(fontSize: 10, color: AppColors.textGrey)),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      flight.arrivalIata,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    ),
+                    Text(
+                      DateFormat('HH:mm').format(flight.arrivalTime),
+                      style: const TextStyle(color: AppColors.textGrey),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  flight.airline,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${flight.currency} ${flight.price}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, bool selected) => GestureDetector(
+        onTap: () {
+          if (label == 'Hotels' || label == 'Flights') {
+            setState(() {
+              _selectedCategory = label;
+            });
+            _performSearch();
+          }
+        },
+        child: Container(
+          margin: const EdgeInsets.only(right: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : AppColors.textGrey,
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      );
 }

@@ -11,6 +11,9 @@ dependencies:
     sdk: flutter
   fluttertoast: ^8.2.4
   google_fonts: ^6.1.0
+  http: ^1.1.0
+  flutter_dotenv: ^5.1.0
+  intl: ^0.18.1
 
 dev_dependencies:
   flutter_test:
@@ -19,3 +22,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - env
