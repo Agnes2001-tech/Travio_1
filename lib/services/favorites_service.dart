@@ -9,7 +9,8 @@ class FavoritesService {
 
   void toggleFavorite(Map<String, dynamic> item) {
     final current = List<Map<String, dynamic>>.from(savedItems.value);
-    final index = current.indexWhere((i) => i['id'] == item['id']);
+    final String id = item['id'].toString();
+    final index = current.indexWhere((i) => i['id'].toString() == id);
     
     if (index >= 0) {
       current.removeAt(index);
@@ -19,7 +20,9 @@ class FavoritesService {
     savedItems.value = current;
   }
 
-  bool isFavorite(String id) {
-    return savedItems.value.any((i) => i['id'] == id);
+  bool isFavorite(dynamic id) {
+    if (id == null) return false;
+    final String idStr = id.toString();
+    return savedItems.value.any((i) => i['id']?.toString() == idStr);
   }
 }

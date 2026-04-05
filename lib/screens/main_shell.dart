@@ -6,23 +6,32 @@ import 'favorites_screen.dart';
 import 'profile_screen.dart';
 
 class MainShell extends StatefulWidget {
+  static final GlobalKey<_MainShellState> mainShellKey = GlobalKey<_MainShellState>();
   const MainShell({super.key});
+  
+  static void changePage(int index) {
+    mainShellKey.currentState?.setState(() {
+      mainShellKey.currentState?._index = index;
+    });
+  }
+
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
   int _index = 0;
-  final _screens = const [
-    HomeScreen(),
-    SearchScreen(),
-    FavoritesScreen(),
-    ProfileScreen(),
+  final _screens = [
+    const HomeScreen(),
+    SearchScreen(key: SearchScreen.searchKey),
+    const FavoritesScreen(),
+    const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: MainShell.mainShellKey,
       body: _screens[_index],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _index,

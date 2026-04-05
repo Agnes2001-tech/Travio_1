@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../theme/app_colors.dart';
 import 'booking_status_screen.dart';
+import '../widgets/glass_container.dart';
+import '../widgets/stardust_background.dart';
 
 class PaymentScreen extends StatefulWidget {
   final Map<String, dynamic> bookingDetails;
@@ -39,6 +41,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   void _processPayment() async {
     final cardNumber = _cardController.text.trim();
+    if (cardNumber.isEmpty) {
+        Fluttertoast.showToast(msg: 'Please enter card number');
+        return;
+    }
     if (!_isLuhnValid(cardNumber)) {
       Fluttertoast.showToast(
         msg: 'Invalid card number (Luhn Check Failed)',
@@ -64,107 +70,118 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.obsidian,
       appBar: AppBar(
-        title: const Text('Payment Details'),
-        foregroundColor: AppColors.textDark,
+        title: const Text('Payment Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: Colors.transparent,
+        foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        centerTitle: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'PAYMENT SUMMARY',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textGrey,
-                letterSpacing: 1,
-                fontWeight: FontWeight.w600,
+      body: StardustBackground(
+        opacity: 0.03,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'PAYMENT SUMMARY',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textGrey,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+              const SizedBox(height: 12),
+              GlassContainer(
+                padding: const EdgeInsets.all(20),
+                borderRadius: 24,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(widget.bookingDetails['name'] ?? 'Flight Booking', style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold)),
+                    Text(
+                      '${LocationService.currencySymbol} ${widget.bookingDetails['amount']}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 18),
+                    ),
+                  ],
+                ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              const SizedBox(height: 32),
+              const Text(
+                'CREDIT CARD',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textGrey,
+                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _cardController,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  hintText: 'Card Number (e.g., 4242 4242 4242 4242)',
+                  prefixIcon: const Icon(Icons.credit_card_rounded, color: AppColors.textSecondary),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 20),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
                 children: [
-                  Text(widget.bookingDetails['name'] ?? 'Flight Booking'),
-                  Text(
-                    '${widget.bookingDetails['amount']} ${widget.bookingDetails['currency']}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+                  Expanded(
+                    child: TextField(
+                      controller: _expiryController,
+                      decoration: const InputDecoration(
+                        hintText: 'MM/YY',
+                        prefixIcon: Icon(Icons.calendar_today_rounded, color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextField(
+                      controller: _cvvController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        hintText: 'CVV',
+                        prefixIcon: Icon(Icons.lock_outline_rounded, color: AppColors.textSecondary),
+                      ),
+                    ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 30),
-            const Text(
-              'CREDIT CARD',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textGrey,
-                letterSpacing: 1,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _cardController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                hintText: 'Card Number (e.g., 4242 4242 4242 4242)',
-                prefixIcon: Icon(Icons.credit_card),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _expiryController,
-                    decoration: const InputDecoration(
-                      hintText: 'MM/YY',
-                      prefixIcon: Icon(Icons.calendar_today),
-                    ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
+                  onPressed: _isProcessing ? null : _processPayment,
+                  child: _isProcessing
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Secure Payment', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextField(
-                    controller: _cvvController,
-                    obscureText: true,
-                    decoration: const InputDecoration(
-                      hintText: 'CVV',
-                      prefixIcon: Icon(Icons.lock_outline),
-                    ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.security_rounded, size: 16, color: AppColors.success.withOpacity(0.8)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Your payment is encrypted and secure.',
+                    style: TextStyle(fontSize: 12, color: AppColors.success.withOpacity(0.8), fontWeight: FontWeight.w500),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 40),
-            ElevatedButton(
-              onPressed: _isProcessing ? null : _processPayment,
-              child: _isProcessing
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Secure Payment'),
-            ),
-            const SizedBox(height: 12),
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.security, size: 14, color: Colors.green),
-                SizedBox(width: 6),
-                Text(
-                  'Your payment is encrypted and secure.',
-                  style: TextStyle(fontSize: 12, color: Colors.green),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
