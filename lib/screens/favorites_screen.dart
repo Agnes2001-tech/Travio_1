@@ -61,13 +61,16 @@ class FavoritesScreen extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                _tab('All', true),
-                _tab('Hotels', false),
-                _tab('Flights', false),
-                _tab('Trips', false),
-              ],
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _tab('All', true),
+                  _tab('Hotels', false),
+                  _tab('Flights', false),
+                  _tab('Trips', false),
+                ],
+              ),
             ),
           ),
           Padding(
@@ -110,6 +113,10 @@ class FavoritesScreen extends StatelessWidget {
                         fit: BoxFit.cover,
                         width: double.infinity,
                         height: double.infinity,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: AppColors.primary.withOpacity(0.1),
+                          child: const Icon(Icons.broken_image, color: AppColors.primary),
+                        ),
                       ),
                       Container(
                         decoration: BoxDecoration(
