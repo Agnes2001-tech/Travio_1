@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import '../theme/app_colors.dart';
 import 'booking_screen.dart';
+import '../models/hotel_model.dart';
 
 class DestinationDetailsScreen extends StatefulWidget {
   const DestinationDetailsScreen({super.key});
