@@ -116,4 +116,47 @@ class AmadeusService {
       throw Exception('Failed to search hotels: ${offersResponse.body}');
     }
   }
+
+  Future<List<Map<String, dynamic>>> getPointsOfInterest(
+      {required double lat, required double lon}) async {
+    final token = await _getAccessToken();
+    final response = await http.get(
+      Uri.parse('$_baseUrl/v1/reference-data/locations/pois?latitude=$lat&longitude=$lon&radius=5'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return List<Map<String, dynamic>>.from(data['data']);
+    } else {
+      throw Exception('Failed to fetch POIs: ${response.body}');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getToursAndActivities(
+      {required double lat, required double lon}) async {
+    final token = await _getAccessToken();
+    final response = await http.get(
+      Uri.parse('$_baseUrl/v1/shopping/activities?latitude=$lat&longitude=$lon&radius=5'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      return List<Map<String, dynamic>>.from(data['data']);
+    } else {
+      throw Exception('Failed to fetch activities: ${response.body}');
+    }
+  }
+
+  Future<Map<String, double>> getCityCoordinates(String cityCode) async {
+    // Static coordinates for common test cities to avoid complexity
+    const cityMap = {
+      'PAR': {'lat': 48.864716, 'lon': 2.349014},
+      'LON': {'lat': 51.5074, 'lon': -0.1278},
+      'NYC': {'lat': 40.7128, 'lon': -74.0060},
+      'TYO': {'lat': 35.6762, 'lon': 139.6503},
+    };
+    return cityMap[cityCode] ?? cityMap['PAR']!;
+  }
 }
