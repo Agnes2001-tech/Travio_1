@@ -248,7 +248,14 @@ class _DestinationDetailsScreenState extends State<DestinationDetailsScreen> {
                       onPressed: () => Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const BookingScreen(),
+                          builder: (_) => BookingScreen(
+                            hotel: HotelOffer(
+                              name: 'Santorini Luxury Suite',
+                              price: '450',
+                              currency: 'USD',
+                              hotelId: 'SAN123',
+                            ),
+                          ),
                         ),
                       ),
                       child: const Text('Book Now'),
